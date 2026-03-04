@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIG Orléans — Transports & Services Urbains</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #161820;
+      --border:   #2a2d3a;
+      --accent:   #e8c547;
+      --accent2:  #4fc3f7;
+      --accent3:  #ef5350;
+      --green:    #66bb6a;
+      --text:     #e8eaf0;
+      --muted:    #6b7280;
+      --font-h:   'Syne', sans-serif;
+      --font-m:   'DM Mono', monospace;
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:var(--bg); color:var(--text); font-family:var(--font-h); overflow:hidden; height:100vh; display:flex; flex-direction:column; }
+
+    /* ── HEADER ── */
+    header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 24px; height:56px; background:var(--surface);
+      border-bottom:1px solid var(--border); flex-shrink:0; z-index:1000;
+    }
+    .logo { display:flex; align-items:center; gap:10px; }
+    .logo-dot {
+      width:10px; height:10px; border-radius:50%; background:var(--accent);
+      box-shadow:0 0 12px var(--accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .logo-text { font-size:15px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; }
+    .logo-sub { font-family:var(--font-m); font-size:11px; color:var(--muted); margin-left:4px; }
+
+    .header-stats {
+      display:flex; gap:20px; font-family:var(--font-m); font-size:12px;
+    }
+    .hstat { display:flex; flex-direction:column; align-items:center; }
+    .hstat-val { font-size:18px; font-weight:500; color:var(--accent); line-height:1; }
+    .hstat-lbl { color:var(--muted); font-size:10px; margin-top:2px; }
+
+    /* ── LAYOUT ── */
+    .main { display:flex; flex:1; overflow:hidden; }
+
+    /* ── SIDEBAR ── */
+    aside {
+      width:260px; background:var(--surface); border-right:1px solid var(--border);
+      display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto;
+    }
+    .section-title {
+      font-family:var(--font-m); font-size:9px; letter-spacing:0.15em;
+      text-transform:uppercase; color:var(--muted);
+      padding:16px 16px 8px;
+    }
+
+    /* Couches */
+    .layer-btn {
+      display:flex; align-items:center; gap:10px;
+      padding:10px 16px; cursor:pointer;
+      border:none; background:none; color:var(--text); width:100%;
+      text-align:left; font-family:var(--font-h); font-size:13px;
+      transition:background .15s;
+      border-left:3px solid transparent;
+    }
+    .layer-btn:hover { background:rgba(255,255,255,.04); }
+    .layer-btn.active { border-left-color:var(--accent); background:rgba(232,197,71,.06); }
+    .layer-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .layer-count {
+      margin-left:auto; font-family:var(--font-m); font-size:11px;
+      color:var(--muted); background:rgba(255,255,255,.07);
+      padding:2px 7px; border-radius:99px;
+    }
+
+    /* Info card */
+    .info-card {
+      margin:12px; padding:14px; background:rgba(255,255,255,.03);
+      border:1px solid var(--border); border-radius:8px;
+    }
+    .info-card h4 { font-size:12px; color:var(--accent); margin-bottom:8px; font-weight:600; }
+    .info-row { display:flex; justify-content:space-between; font-size:11px; font-family:var(--font-m); color:var(--muted); margin:4px 0; }
+    .info-row span { color:var(--text); }
+
+    /* ── MAP ── */
+    #map { flex:1; }
+    .leaflet-container { background:#0d0f14 !important; }
+
+    /* ── POPUP ── */
+    .leaflet-popup-content-wrapper {
+      background:var(--surface) !important;
+      border:1px solid var(--border) !important;
+      border-radius:8px !important;
+      box-shadow:0 8px 32px rgba(0,0,0,.6) !important;
+      color:var(--text) !important;
+      font-family:var(--font-h) !important;
+    }
+    .leaflet-popup-tip { background:var(--surface) !important; }
+    .popup-title { font-weight:700; font-size:13px; margin-bottom:6px; color:var(--accent); }
+    .popup-row { font-size:11px; color:var(--muted); font-family:var(--font-m); margin:3px 0; }
+    .popup-row b { color:var(--text); }
+
+    /* ── BOTTOM BAR ── */
+    .bottom-bar {
+      height:36px; background:var(--surface); border-top:1px solid var(--border);
+      display:flex; align-items:center; padding:0 16px; gap:20px;
+      font-family:var(--font-m); font-size:11px; color:var(--muted); flex-shrink:0;
+    }
+    .bottom-bar span { display:flex; align-items:center; gap:6px; }
+    .live-dot { width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); }
+
+    /* scrollbar */
+    aside::-webkit-scrollbar { width:4px; }
+    aside::-webkit-scrollbar-track { background:transparent; }
+    aside::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <div>
+      <span class="logo-text">SIG Orléans</span>
+      <span class="logo-sub">/ Transports & Services</span>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="hstat"><span class="hstat-val" id="hs-arrets">95</span><span class="hstat-lbl">Arrêts</span></div>
+    <div class="hstat"><span class="hstat-val" id="hs-hop">6</span><span class="hstat-lbl">Hôpitaux</span></div>
+    <div class="hstat"><span class="hstat-val" id="hs-eco">22</span><span class="hstat-lbl">Écoles</span></div>
+    <div class="hstat"><span class="hstat-val" id="hs-pharma">28</span><span class="hstat-lbl">Pharmacies</span></div>
+    <div class="hstat"><span class="hstat-val" id="hs-parcs">15</span><span class="hstat-lbl">Parcs</span></div>
+  </div>
+</header>
+
+<div class="main">
+  <aside>
+    <div class="section-title">Couches de données</div>
+
+    <button class="layer-btn active" id="btn-arrets" onclick="toggleLayer('arrets')">
+      <span class="layer-dot" style="background:#4fc3f7; box-shadow:0 0 6px #4fc3f7"></span>
+      Transports
+      <span class="layer-count">95</span>
+    </button>
+    <button class="layer-btn active" id="btn-hopitaux" onclick="toggleLayer('hopitaux')">
+      <span class="layer-dot" style="background:#ef5350; box-shadow:0 0 6px #ef5350"></span>
+      Hôpitaux
+      <span class="layer-count">6</span>
+    </button>
+    <button class="layer-btn active" id="btn-ecoles" onclick="toggleLayer('ecoles')">
+      <span class="layer-dot" style="background:#ffa726; box-shadow:0 0 6px #ffa726"></span>
+      Écoles
+      <span class="layer-count">22</span>
+    </button>
+    <button class="layer-btn active" id="btn-pharmacies" onclick="toggleLayer('pharmacies')">
+      <span class="layer-dot" style="background:#ab47bc; box-shadow:0 0 6px #ab47bc"></span>
+      Pharmacies
+      <span class="layer-count">28</span>
+    </button>
+    <button class="layer-btn active" id="btn-parcs" onclick="toggleLayer('parcs')">
+      <span class="layer-dot" style="background:#66bb6a; box-shadow:0 0 6px #66bb6a"></span>
+      Parcs
+      <span class="layer-count">15</span>
+    </button>
+
+    <div class="section-title" style="margin-top:8px">Fond de carte</div>
+    <button class="layer-btn active" id="btn-dark" onclick="setBasemap('dark')">
+      <span class="layer-dot" style="background:#555"></span>
+      Sombre
+    </button>
+    <button class="layer-btn" id="btn-osm" onclick="setBasemap('osm')">
+      <span class="layer-dot" style="background:#4fc3f7"></span>
+      OpenStreetMap
+    </button>
+    <button class="layer-btn" id="btn-satellite" onclick="setBasemap('satellite')">
+      <span class="layer-dot" style="background:#66bb6a"></span>
+      Satellite
+    </button>
+
+    <div class="section-title" style="margin-top:8px">Analyse</div>
+    <div class="info-card">
+      <h4>📍 Zone d'étude</h4>
+      <div class="info-row">Ville <span>Orléans, France</span></div>
+      <div class="info-row">Lat/Lon <span>47.90° / 1.90°</span></div>
+      <div class="info-row">Source <span>OpenStreetMap</span></div>
+    </div>
+    <div class="info-card">
+      <h4>ℹ️ Comment utiliser</h4>
+      <div style="font-size:11px; color:var(--muted); line-height:1.7; font-family:var(--font-m)">
+        Cliquez sur les boutons pour afficher/masquer les couches.<br><br>
+        Cliquez sur un point de la carte pour voir ses détails.
+      </div>
+    </div>
+  </aside>
+
+  <div id="map"></div>
+</div>
+
+<div class="bottom-bar">
+  <span><div class="live-dot"></div> Données OpenStreetMap</span>
+  <span>🗺️ Leaflet.js</span>
+  <span>🐍 Python + GeoPandas</span>
+  <span style="margin-left:auto; color:#4fc3f7">Orléans, Loiret (45) — France</span>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── Données injectées par Python ──
+const data_arrets = {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8739, 47.90345770719384]}, "properties": {"osm_id": 1000, "name": "Arr\u00eat Tram 1", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8759, 47.90100004302089]}, "properties": {"osm_id": 1001, "name": "Arr\u00eat Tram 2", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8779, 47.90200011727348]}, "properties": {"osm_id": 1002, "name": "Arr\u00eat Tram 3", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8799, 47.901792842952595]}, "properties": {"osm_id": 1003, "name": "Arr\u00eat Tram 4", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8819, 47.90384588485666]}, "properties": {"osm_id": 1004, "name": "Arr\u00eat Tram 5", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8839, 47.90360679794969]}, "properties": {"osm_id": 1005, "name": "Arr\u00eat Tram 6", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8859, 47.90446871827082]}, "properties": {"osm_id": 1006, "name": "Arr\u00eat Tram 7", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8879, 47.90124775533052]}, "properties": {"osm_id": 1007, "name": "Arr\u00eat Tram 8", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8899, 47.902587687278746]}, "properties": {"osm_id": 1008, "name": "Arr\u00eat Tram 9", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8919, 47.901019188877754]}, "properties": {"osm_id": 1009, "name": "Arr\u00eat Tram 10", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8939, 47.901774551899216]}, "properties": {"osm_id": 1010, "name": "Arr\u00eat Tram 11", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8959, 47.90292142115241]}, "properties": {"osm_id": 1011, "name": "Arr\u00eat Tram 12", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8979, 47.90100614387874]}, "properties": {"osm_id": 1012, "name": "Arr\u00eat Tram 13", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8999, 47.90169535060275]}, "properties": {"osm_id": 1013, "name": "Arr\u00eat Tram 14", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9019, 47.903499537751124]}, "properties": {"osm_id": 1014, "name": "Arr\u00eat Tram 15", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9039, 47.90307976592241]}, "properties": {"osm_id": 1015, "name": "Arr\u00eat Tram 16", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9059, 47.90178176248816]}, "properties": {"osm_id": 1016, "name": "Arr\u00eat Tram 17", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9079, 47.903257062735506]}, "properties": {"osm_id": 1017, "name": "Arr\u00eat Tram 18", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9099, 47.904137721826714]}, "properties": {"osm_id": 1018, "name": "Arr\u00eat Tram 19", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9119, 47.90092599503871]}, "properties": {"osm_id": 1019, "name": "Arr\u00eat Tram 20", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9139, 47.904123277007336]}, "properties": {"osm_id": 1020, "name": "Arr\u00eat Tram 21", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9159, 47.90369255757996]}, "properties": {"osm_id": 1021, "name": "Arr\u00eat Tram 22", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9179, 47.902261002066076]}, "properties": {"osm_id": 1022, "name": "Arr\u00eat Tram 23", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9199, 47.90152191799925]}, "properties": {"osm_id": 1023, "name": "Arr\u00eat Tram 24", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9219, 47.90472885228883]}, "properties": {"osm_id": 1024, "name": "Arr\u00eat Tram 25", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9239, 47.90224637818045]}, "properties": {"osm_id": 1025, "name": "Arr\u00eat Tram 26", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9259, 47.90127098337352]}, "properties": {"osm_id": 1026, "name": "Arr\u00eat Tram 27", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9279, 47.90128686550734]}, "properties": {"osm_id": 1027, "name": "Arr\u00eat Tram 28", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9299, 47.90428997746539]}, "properties": {"osm_id": 1028, "name": "Arr\u00eat Tram 29", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9319, 47.90331490412547]}, "properties": {"osm_id": 1029, "name": "Arr\u00eat Tram 30", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9051285130930975, 47.877900000000004]}, "properties": {"osm_id": 1030, "name": "Arr\u00eat Tram 31", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9048189271467753, 47.8804]}, "properties": {"osm_id": 1031, "name": "Arr\u00eat Tram 32", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9040449123658187, 47.88290000000001]}, "properties": {"osm_id": 1032, "name": "Arr\u00eat Tram 33", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9057924630559173, 47.885400000000004]}, "properties": {"osm_id": 1033, "name": "Arr\u00eat Tram 34", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9034141375088334, 47.8879]}, "properties": {"osm_id": 1034, "name": "Arr\u00eat Tram 35", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9041081625250929, 47.89040000000001]}, "properties": {"osm_id": 1035, "name": "Arr\u00eat Tram 36", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.905217618657012, 47.892900000000004]}, "properties": {"osm_id": 1036, "name": "Arr\u00eat Tram 37", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.904374079009457, 47.8954]}, "properties": {"osm_id": 1037, "name": "Arr\u00eat Tram 38", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.905346827601243, 47.89790000000001]}, "properties": {"osm_id": 1038, "name": "Arr\u00eat Tram 39", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.904209408581027, 47.900400000000005]}, "properties": {"osm_id": 1039, "name": "Arr\u00eat Tram 40", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9047182873448596, 47.9029]}, "properties": {"osm_id": 1040, "name": "Arr\u00eat Tram 41", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9020832975346225, 47.90540000000001]}, "properties": {"osm_id": 1041, "name": "Arr\u00eat Tram 42", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9028115931026062, 47.907900000000005]}, "properties": {"osm_id": 1042, "name": "Arr\u00eat Tram 43", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9030575518544084, 47.9104]}, "properties": {"osm_id": 1043, "name": "Arr\u00eat Tram 44", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9022191679076945, 47.9129]}, "properties": {"osm_id": 1044, "name": "Arr\u00eat Tram 45", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.902831163545444, 47.915400000000005]}, "properties": {"osm_id": 1045, "name": "Arr\u00eat Tram 46", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9023040057176388, 47.9179]}, "properties": {"osm_id": 1046, "name": "Arr\u00eat Tram 47", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9030118944124403, 47.9204]}, "properties": {"osm_id": 1047, "name": "Arr\u00eat Tram 48", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9044427377770576, 47.922900000000006]}, "properties": {"osm_id": 1048, "name": "Arr\u00eat Tram 49", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9033593287158803, 47.9254]}, "properties": {"osm_id": 1049, "name": "Arr\u00eat Tram 50", "highway": null, "railway": "tram_stop", "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8974090483558441, 47.892732746077]}, "properties": {"osm_id": 1050, "name": "Arr\u00eat Bus 51", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8922488911024555, 47.91818291056994]}, "properties": {"osm_id": 1051, "name": "Arr\u00eat Bus 52", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9113017692623295, 47.906719585198346]}, "properties": {"osm_id": 1052, "name": "Arr\u00eat Bus 53", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8874569324099049, 47.910919437928264]}, "properties": {"osm_id": 1053, "name": "Arr\u00eat Bus 54", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8870701246880963, 47.89868094046152]}, "properties": {"osm_id": 1054, "name": "Arr\u00eat Bus 55", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9283761675318296, 47.90779999159489]}, "properties": {"osm_id": 1055, "name": "Arr\u00eat Bus 56", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9067474871887322, 47.90936149878465]}, "properties": {"osm_id": 1056, "name": "Arr\u00eat Bus 57", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9210425960094903, 47.91255999690412]}, "properties": {"osm_id": 1057, "name": "Arr\u00eat Bus 58", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8903524035982051, 47.88652350853664]}, "properties": {"osm_id": 1058, "name": "Arr\u00eat Bus 59", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.894672652402954, 47.89477093065915]}, "properties": {"osm_id": 1059, "name": "Arr\u00eat Bus 60", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8894491421793163, 47.91840184000173]}, "properties": {"osm_id": 1060, "name": "Arr\u00eat Bus 61", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9227183813236333, 47.89641372582795]}, "properties": {"osm_id": 1061, "name": "Arr\u00eat Bus 62", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9116719332647438, 47.899247116537126]}, "properties": {"osm_id": 1062, "name": "Arr\u00eat Bus 63", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.924627379487027, 47.901459814840564]}, "properties": {"osm_id": 1063, "name": "Arr\u00eat Bus 64", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8921440083249026, 47.89403196276929]}, "properties": {"osm_id": 1064, "name": "Arr\u00eat Bus 65", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9069684067081574, 47.8945959562983]}, "properties": {"osm_id": 1065, "name": "Arr\u00eat Bus 66", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.908129299511177, 47.91682380092609]}, "properties": {"osm_id": 1066, "name": "Arr\u00eat Bus 67", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8988700252570199, 47.89307622657051]}, "properties": {"osm_id": 1067, "name": "Arr\u00eat Bus 68", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9287768803247554, 47.90323342027868]}, "properties": {"osm_id": 1068, "name": "Arr\u00eat Bus 69", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8834454706086896, 47.88704907313987]}, "properties": {"osm_id": 1069, "name": "Arr\u00eat Bus 70", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8843824565175329, 47.90736061145961]}, "properties": {"osm_id": 1070, "name": "Arr\u00eat Bus 71", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9185039682181482, 47.90017559883799]}, "properties": {"osm_id": 1071, "name": "Arr\u00eat Bus 72", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8820763853075977, 47.898756675027734]}, "properties": {"osm_id": 1072, "name": "Arr\u00eat Bus 73", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9287060690120048, 47.903919002078474]}, "properties": {"osm_id": 1073, "name": "Arr\u00eat Bus 74", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9274539188806807, 47.91552728957821]}, "properties": {"osm_id": 1074, "name": "Arr\u00eat Bus 75", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8794740510971408, 47.91062526367761]}, "properties": {"osm_id": 1075, "name": "Arr\u00eat Bus 76", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9129855184513287, 47.90419396156431]}, "properties": {"osm_id": 1076, "name": "Arr\u00eat Bus 77", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.892241259497627, 47.907833662950296]}, "properties": {"osm_id": 1077, "name": "Arr\u00eat Bus 78", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8844776086797936, 47.90061678377342]}, "properties": {"osm_id": 1078, "name": "Arr\u00eat Bus 79", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9015861853164602, 47.91878355746324]}, "properties": {"osm_id": 1079, "name": "Arr\u00eat Bus 80", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9226926470189096, 47.89461861677629]}, "properties": {"osm_id": 1080, "name": "Arr\u00eat Bus 81", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9039293056525148, 47.89165281581856]}, "properties": {"osm_id": 1081, "name": "Arr\u00eat Bus 82", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9245313919672409, 47.91586814994429]}, "properties": {"osm_id": 1082, "name": "Arr\u00eat Bus 83", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8938222395724316, 47.90776323232031]}, "properties": {"osm_id": 1083, "name": "Arr\u00eat Bus 84", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9093485105719086, 47.89074937439924]}, "properties": {"osm_id": 1084, "name": "Arr\u00eat Bus 85", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9170255400037575, 47.90427826605419]}, "properties": {"osm_id": 1085, "name": "Arr\u00eat Bus 86", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9178313239315279, 47.903962378526835]}, "properties": {"osm_id": 1086, "name": "Arr\u00eat Bus 87", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8789285948063972, 47.89674546199517]}, "properties": {"osm_id": 1087, "name": "Arr\u00eat Bus 88", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8798738371192916, 47.917918451569264]}, "properties": {"osm_id": 1088, "name": "Arr\u00eat Bus 89", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.922836093891159, 47.914508293527646]}, "properties": {"osm_id": 1089, "name": "Arr\u00eat Bus 90", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.894275706270133, 47.8874273808273]}, "properties": {"osm_id": 1090, "name": "Arr\u00eat Bus 91", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9228004799602019, 47.918543230585435]}, "properties": {"osm_id": 1091, "name": "Arr\u00eat Bus 92", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8831826726033938, 47.90240966621609]}, "properties": {"osm_id": 1092, "name": "Arr\u00eat Bus 93", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8823606259234191, 47.912021075784004]}, "properties": {"osm_id": 1093, "name": "Arr\u00eat Bus 94", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9171917214653493, 47.88989370125749]}, "properties": {"osm_id": 1094, "name": "Arr\u00eat Bus 95", "highway": "bus_stop", "railway": null, "network": "TAO Orl\u00e9ans"}}]};
+const data_hopitaux = {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.912, 47.908]}, "properties": {"osm_id": 1000, "name": "CHR d'Orl\u00e9ans La Source", "amenity": "hospital", "phone": "02 38 XX XX XX", "dist_transport_m": 152}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.905, 47.912]}, "properties": {"osm_id": 1001, "name": "Clinique de l'Archette", "amenity": "hospital", "phone": "02 38 XX XX XX", "dist_transport_m": 229}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.898, 47.899]}, "properties": {"osm_id": 1002, "name": "H\u00f4pital Porte Madeleine", "amenity": "hospital", "phone": "02 38 XX XX XX", "dist_transport_m": 223}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.92, 47.903]}, "properties": {"osm_id": 1003, "name": "Polyclinique du Loiret", "amenity": "hospital", "phone": "02 38 XX XX XX", "dist_transport_m": 165}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.887, 47.915]}, "properties": {"osm_id": 1004, "name": "Centre de Sant\u00e9 Nord", "amenity": "hospital", "phone": "02 38 XX XX XX", "dist_transport_m": 420}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.91, 47.894]}, "properties": {"osm_id": 1005, "name": "Clinique du Bois", "amenity": "hospital", "phone": "02 38 XX XX XX", "dist_transport_m": 236}}]};
+const data_ecoles = {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8995957246512496, 47.89160248965333]}, "properties": {"osm_id": 1000, "name": "\u00c9cole Victor Hugo", "amenity": "school", "dist_transport_m": 173}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9061005809716496, 47.91191329790833]}, "properties": {"osm_id": 1001, "name": "Lyc\u00e9e Pothier", "amenity": "university", "dist_transport_m": 282}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.887164459549823, 47.895519278619]}, "properties": {"osm_id": 1002, "name": "Coll\u00e8ge Jean Zay", "amenity": "school", "dist_transport_m": 352}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.93162836397301, 47.90877521985947]}, "properties": {"osm_id": 1003, "name": "\u00c9cole des Capucins", "amenity": "school", "dist_transport_m": 266}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.900433604699212, 47.9035889729686]}, "properties": {"osm_id": 1004, "name": "Lyc\u00e9e Benjamin Franklin", "amenity": "university", "dist_transport_m": 110}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8826762349686228, 47.892108135611636]}, "properties": {"osm_id": 1005, "name": "Coll\u00e8ge Georges Clemenceau", "amenity": "school", "dist_transport_m": 565}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8948327914802574, 47.90636170176353]}, "properties": {"osm_id": 1006, "name": "\u00c9cole Dunois", "amenity": "school", "dist_transport_m": 173}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8887864250254083, 47.8919325214705]}, "properties": {"osm_id": 1007, "name": "Lyc\u00e9e Voltaire", "amenity": "university", "dist_transport_m": 342}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8798756128165057, 47.90803923592499]}, "properties": {"osm_id": 1008, "name": "Coll\u00e8ge Gilles de Chin", "amenity": "school", "dist_transport_m": 289}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8887207398934245, 47.91879246450984]}, "properties": {"osm_id": 1009, "name": "\u00c9cole R\u00e9publique", "amenity": "school", "dist_transport_m": 70}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9240395824142098, 47.886077608115635]}, "properties": {"osm_id": 1010, "name": "IUT Orl\u00e9ans", "amenity": "university", "dist_transport_m": 664}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8892282595246637, 47.909523928909216]}, "properties": {"osm_id": 1011, "name": "Universit\u00e9 d'Orl\u00e9ans", "amenity": "university", "dist_transport_m": 204}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8878972612127445, 47.888486624470026]}, "properties": {"osm_id": 1012, "name": "\u00c9cole Saint-Charles", "amenity": "school", "dist_transport_m": 285}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9282887974725176, 47.90568488925835]}, "properties": {"osm_id": 1013, "name": "Coll\u00e8ge Abb\u00e9 Pasty", "amenity": "school", "dist_transport_m": 196}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9023695774734604, 47.9140570814322]}, "properties": {"osm_id": 1014, "name": "Lyc\u00e9e Charles P\u00e9guy", "amenity": "university", "dist_transport_m": 129}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9211198318749318, 47.89076406864299]}, "properties": {"osm_id": 1015, "name": "\u00c9cole des Pr\u00e8s-Bas", "amenity": "school", "dist_transport_m": 308}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.881328125596814, 47.900197206350335]}, "properties": {"osm_id": 1016, "name": "Coll\u00e8ge La Madeleine", "amenity": "school", "dist_transport_m": 170}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8996204028891155, 47.90160736698704]}, "properties": {"osm_id": 1017, "name": "\u00c9cole Faubourg Bannier", "amenity": "school", "dist_transport_m": 23}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9167282475697516, 47.9096958902539]}, "properties": {"osm_id": 1018, "name": "Lyc\u00e9e Agricole", "amenity": "university", "dist_transport_m": 453}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.931013251836494, 47.88715798054916]}, "properties": {"osm_id": 1019, "name": "\u00c9cole L\u00e9on Blum", "amenity": "school", "dist_transport_m": 1036}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.898446791797727, 47.89660066213148]}, "properties": {"osm_id": 1020, "name": "Coll\u00e8ge Michelet", "amenity": "school", "dist_transport_m": 347}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9241536620357562, 47.893047328289676]}, "properties": {"osm_id": 1021, "name": "\u00c9cole Jardin des Plantes", "amenity": "school", "dist_transport_m": 206}}]};
+const data_pharmacies = {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8890148595583574, 47.8992978666488]}, "properties": {"osm_id": 1000, "name": "Pharmacie A", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8809490407985532, 47.89849462153076]}, "properties": {"osm_id": 1001, "name": "Pharmacie B", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9291360598765457, 47.894353391317466]}, "properties": {"osm_id": 1002, "name": "Pharmacie C", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9186716713013254, 47.90126230457115]}, "properties": {"osm_id": 1003, "name": "Pharmacie D", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8998963892714884, 47.91954636212729]}, "properties": {"osm_id": 1004, "name": "Pharmacie E", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.929661979853621, 47.90492996697197]}, "properties": {"osm_id": 1005, "name": "Pharmacie F", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.915257230315409, 47.89033460443998]}, "properties": {"osm_id": 1006, "name": "Pharmacie G", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8933288069257173, 47.91996102088488]}, "properties": {"osm_id": 1007, "name": "Pharmacie H", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9080173751224452, 47.904435905330025]}, "properties": {"osm_id": 1008, "name": "Pharmacie I", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9167947291397112, 47.88678081593383]}, "properties": {"osm_id": 1009, "name": "Pharmacie J", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9082772349118664, 47.90300375393827]}, "properties": {"osm_id": 1010, "name": "Pharmacie K", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9222414343865108, 47.890430551297]}, "properties": {"osm_id": 1011, "name": "Pharmacie L", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9278605029702713, 47.88761605733476]}, "properties": {"osm_id": 1012, "name": "Pharmacie M", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8875628979709975, 47.906359277874785]}, "properties": {"osm_id": 1013, "name": "Pharmacie N", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9130110527874127, 47.893261421778035]}, "properties": {"osm_id": 1014, "name": "Pharmacie O", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8841341039252504, 47.917106458234315]}, "properties": {"osm_id": 1015, "name": "Pharmacie P", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8907031980850084, 47.90634049718862]}, "properties": {"osm_id": 1016, "name": "Pharmacie Q", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9101078385372692, 47.89995978691823]}, "properties": {"osm_id": 1017, "name": "Pharmacie R", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9082509590431436, 47.90372929084536]}, "properties": {"osm_id": 1018, "name": "Pharmacie S", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9265047254022942, 47.89213503485902]}, "properties": {"osm_id": 1019, "name": "Pharmacie T", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9151419736410495, 47.893388168675216]}, "properties": {"osm_id": 1020, "name": "Pharmacie U", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8984808640331452, 47.90914952411575]}, "properties": {"osm_id": 1021, "name": "Pharmacie V", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8934998481495355, 47.8962088499443]}, "properties": {"osm_id": 1022, "name": "Pharmacie W", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.916996953605549, 47.88734056936755]}, "properties": {"osm_id": 1023, "name": "Pharmacie X", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9017308471761665, 47.921043741647104]}, "properties": {"osm_id": 1024, "name": "Pharmacie Y", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.929697015288465, 47.88736669024803]}, "properties": {"osm_id": 1025, "name": "Pharmacie Z", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.8889840242378861, 47.89435329509692]}, "properties": {"osm_id": 1026, "name": "Pharmacie A", "amenity": "pharmacy"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.926429487655673, 47.91676345592219]}, "properties": {"osm_id": 1027, "name": "Pharmacie B", "amenity": "pharmacy"}}]};
+const data_parcs = {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.9039, 47.912]}, "properties": {"osm_id": 1000, "name": "Parc Pasteur", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.892, 47.905]}, "properties": {"osm_id": 1001, "name": "Parc de l'Arche", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.915, 47.898]}, "properties": {"osm_id": 1002, "name": "Jardin des Plantes", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.898, 47.918]}, "properties": {"osm_id": 1003, "name": "Parc du Bois", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.92, 47.91]}, "properties": {"osm_id": 1004, "name": "Parc L\u00e9on Blum", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.907, 47.892]}, "properties": {"osm_id": 1005, "name": "Parc des Sports", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.901, 47.906]}, "properties": {"osm_id": 1006, "name": "Square de la Cath\u00e9drale", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.885, 47.908]}, "properties": {"osm_id": 1007, "name": "Parc du Ch\u00e2teau", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.918, 47.896]}, "properties": {"osm_id": 1008, "name": "Parc des Cr\u00eates", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.909, 47.92]}, "properties": {"osm_id": 1009, "name": "Parc Nord", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.896, 47.894]}, "properties": {"osm_id": 1010, "name": "Promenade de Loire", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.913, 47.916]}, "properties": {"osm_id": 1011, "name": "Square Saint-Marc", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.89, 47.914]}, "properties": {"osm_id": 1012, "name": "Parc Municipal Ouest", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.906, 47.888]}, "properties": {"osm_id": 1013, "name": "Berges de Loire", "leisure": "park"}}, {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.922, 47.907]}, "properties": {"osm_id": 1014, "name": "Parc des Sources", "leisure": "park"}}]};
+
+// ── Carte ──
+const map = L.map('map', {
+  center: [47.9029, 1.9039],
+  zoom: 14,
+  zoomControl: false
+});
+L.control.zoom({ position: 'topright' }).addTo(map);
+
+// ── Fonds de carte ──
+const basemaps = {
+  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap, © CARTO', maxZoom: 19
+  }),
+  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap', maxZoom: 19
+  }),
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '© Esri', maxZoom: 19
+  })
+};
+basemaps.dark.addTo(map);
+let currentBase = 'dark';
+
+function setBasemap(name) {
+  map.removeLayer(basemaps[currentBase]);
+  basemaps[name].addTo(map);
+  basemaps[name].bringToBack();
+  currentBase = name;
+  document.querySelectorAll('[id^=btn-dark],[id^=btn-osm],[id^=btn-satellite]').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + name).classList.add('active');
+}
+
+// ── Helpers popup ──
+function popupHTML(title, rows) {
+  let html = `<div class="popup-title">${title}</div>`;
+  for (const [k,v] of Object.entries(rows)) {
+    if (v) html += `<div class="popup-row">${k} &nbsp;<b>${v}</b></div>`;
+  }
+  return html;
+}
+
+// ── Couches ──
+const layers = {};
+
+// Arrêts de transport
+layers.arrets = L.geoJSON(data_arrets, {
+  pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+    radius: 5, fillColor: '#4fc3f7', color: '#0d0f14', weight: 1,
+    fillOpacity: 0.9
+  }),
+  onEachFeature: (f, layer) => {
+    const p = f.properties;
+    layer.bindPopup(popupHTML('🚌 ' + (p.name || 'Arrêt de transport'), {
+      'Type': p.highway || p.public_transport || p.railway,
+      'Réseau': p.network,
+      'Ref': p.ref
+    }));
+  }
+}).addTo(map);
+
+// Hôpitaux
+layers.hopitaux = L.geoJSON(data_hopitaux, {
+  pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+    radius: 8, fillColor: '#ef5350', color: '#fff', weight: 1.5,
+    fillOpacity: 0.95
+  }),
+  onEachFeature: (f, layer) => {
+    const p = f.properties;
+    layer.bindPopup(popupHTML('🏥 ' + (p.name || 'Hôpital'), {
+      'Adresse': p['addr:street'],
+      'Téléphone': p.phone,
+      'Distance TC': p.dist_transport_m ? p.dist_transport_m + ' m' : null
+    }));
+  }
+}).addTo(map);
+
+// Écoles
+layers.ecoles = L.geoJSON(data_ecoles, {
+  pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+    radius: 6, fillColor: '#ffa726', color: '#0d0f14', weight: 1,
+    fillOpacity: 0.9
+  }),
+  onEachFeature: (f, layer) => {
+    const p = f.properties;
+    layer.bindPopup(popupHTML('🏫 ' + (p.name || 'École'), {
+      'Type': p.amenity,
+      'Adresse': p['addr:street'],
+      'Distance TC': p.dist_transport_m ? p.dist_transport_m + ' m' : null
+    }));
+  }
+}).addTo(map);
+
+// Pharmacies
+layers.pharmacies = L.geoJSON(data_pharmacies, {
+  pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+    radius: 5, fillColor: '#ab47bc', color: '#0d0f14', weight: 1,
+    fillOpacity: 0.9
+  }),
+  onEachFeature: (f, layer) => {
+    const p = f.properties;
+    layer.bindPopup(popupHTML('💊 ' + (p.name || 'Pharmacie'), {
+      'Adresse': p['addr:street'],
+      'Téléphone': p.phone
+    }));
+  }
+}).addTo(map);
+
+// Parcs
+layers.parcs = L.geoJSON(data_parcs, {
+  pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+    radius: 6, fillColor: '#66bb6a', color: '#0d0f14', weight: 1,
+    fillOpacity: 0.9
+  }),
+  onEachFeature: (f, layer) => {
+    const p = f.properties;
+    layer.bindPopup(popupHTML('🌿 ' + (p.name || 'Parc'), {
+      'Type': p.leisure
+    }));
+  }
+}).addTo(map);
+
+// ── Toggle couches ──
+const layerState = { arrets:true, hopitaux:true, ecoles:true, pharmacies:true, parcs:true };
+
+function toggleLayer(name) {
+  layerState[name] = !layerState[name];
+  const btn = document.getElementById('btn-' + name);
+  if (layerState[name]) {
+    layers[name].addTo(map);
+    btn.classList.add('active');
+  } else {
+    map.removeLayer(layers[name]);
+    btn.classList.remove('active');
+  }
+}
+</script>
+</body>
+</html>
